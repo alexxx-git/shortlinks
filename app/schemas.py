@@ -43,3 +43,13 @@ class LinkRequest(BaseModel):
             raise ValueError("Alias должен содержать только буквы и цифры (от 5 до 15 символов).")
 
         return v
+    
+class ShortLinkUpdateModel(BaseModel):
+    new_url: str = Field(..., max_length=2000)
+
+    @field_validator('new_url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        if not re.match(r"^https?://", v):  # Проверяем, что URL начинается с http:// или https://
+            raise ValueError('Некорректный URL')
+        return v.strip()

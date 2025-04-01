@@ -16,15 +16,23 @@
 
         <div id="user-greeting"></div>
 
-
         <!-- Для гостей -->
         <div id="guest-container" class="short-link-container">
             <label for="guest-original-link">Введите длинную ссылку</label>
             <input type="url" id="guest-original-link" placeholder="Введите URL" />
             <input type="text" id="guest-short-link" class="short-link-display" readonly style="display: none;" />
             <button id="guest-get-short-link">Создать короткую ссылку</button>
-                    <!-- Вывод ошибки -->
+            <!-- Вывод ошибки -->
             <div id="guest-error-message" style="color: red; font-weight: bold; display: none;"></div>
+            
+            <!-- Блок поиска для гостей -->
+            <div id="guest-search-container" class="search-container">
+                <h3>Поиск короткой ссылки</h3>
+                <input type="text" id="guest-search-original-url" placeholder="Введите оригинальный URL для поиска" />
+                <button id="guest-search-button">Найти короткую ссылку</button>
+                <div id="guest-search-results" style="margin-top: 10px;"></div>
+                <div id="guest-search-error" style="color: red; font-weight: bold; display: none;"></div>
+            </div>
         </div>
 
         <!-- Для зарегистрированных пользователей -->
@@ -35,8 +43,36 @@
             <input type="text" id="user-custom-alias" placeholder="Кастомный алиас" />
             <input type="text" id="user-short-link" class="short-link-display" readonly style="display: none;" />
             <button id="user-get-short-link">Создать короткую ссылку</button>
-                    <!-- Вывод ошибки -->
+            <!-- Вывод ошибки -->
             <div id="user-error-message" style="color: red; font-weight: bold; display: none;"></div>
+            
+            <!-- Блок поиска для пользователей -->
+            <div id="user-search-container" class="search-container">
+                <h3>Поиск короткой ссылки</h3>
+                <input type="text" id="user-search-original-url" placeholder="Введите оригинальный URL для поиска" />
+                <button id="user-search-button">Найти короткую ссылку</button>
+                <div id="user-search-results" style="margin-top: 10px;"></div>
+                <div id="user-search-error" style="color: red; font-weight: bold; display: none;"></div>
+            </div>
+
+            <!-- Блок для изменения URL -->
+            <div class="update-container">
+                <h3>Изменить URL короткой ссылки</h3>
+                <input type="text" id="update-short-code" placeholder="Короткий код" />
+                <input type="url" id="new-url" placeholder="Новый URL" />
+                <button id="update-button">Заменить URL</button>
+                <div id="update-error" style="color: red; font-weight: bold; display: none;"></div>
+                <div id="update-success" style="color: green; font-weight: bold; display: none;"></div>
+            </div>
+
+            <!-- Блок для удаления ссылок -->
+            <div class="delete-container">
+                <h3>Удалить короткую ссылку</h3>
+                <input type="text" id="delete-short-code" placeholder="Введите короткий код" />
+                <button id="delete-button">Удалить</button>
+                <div id="delete-error" style="color: red; font-weight: bold; display: none;"></div>
+                <div id="delete-success" style="color: green; font-weight: bold; display: none;"></div>
+            </div>
         </div>
 
         <!-- Отображение результата -->

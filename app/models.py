@@ -43,7 +43,7 @@ class ShortLinkArchive(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    short_code = Column(String, unique=True, nullable=False, index=True)
+    short_code = Column(String, nullable=False, index=True)
     original_url = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime)
     expires_at = Column(DateTime, nullable=True)
@@ -64,16 +64,16 @@ class Visit(Base):
     __tablename__ = "visits"
     
     id = Column(Integer, primary_key=True)
-    owner=Column(Integer, nullable=True) 
-    timestamp = Column(DateTime, default=datetime,  index=True)
+    owner=Column(Integer, nullable=True) # userid
+    timestamp = Column(DateTime, default=datetime,  index=True) #time
     short_code = Column(String, ForeignKey("short_links.short_code"), nullable=False, index=True)
-    original_url = Column(String, nullable=False)
+    original_url = Column(String, nullable=False) 
     domain_1st = Column(String, nullable=True)  # Домен 1-го уровня
     domain_2nd = Column(String, nullable=True)  # Домен 2-го уровня
     ip_address = Column(String, nullable=False)
     device_type = Column(String, nullable=False)  # Тип устройства (mobile, desktop)
-    country = Column(String, nullable=True)
-    referer = Column(String, nullable=True)
+    country = Column(String, nullable=True) #
+    referer = Column(String, nullable=True) #
     short_link = relationship("ShortLink", back_populates="visits", primaryjoin="ShortLink.short_code == Visit.short_code")
 
 class VisitArchive(Base):

@@ -116,3 +116,67 @@ input[type="email"] {
     font-size: 36px;  /* Шрифт для имени еще больше */
     font-weight: bold; /* Жирный шрифт */
 }
+
+/* Стили для блока обновления */
+.update-container {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 20px; /* Отступ перед блоком удаления */
+}
+
+.update-container h3 {
+    margin-top: 0;
+    color: #17a2b8; /* Информационный цвет */
+}
+
+#update-button {
+    background-color: #17a2b8;
+    margin-top: 10px;
+}
+
+#update-button:hover {
+    background-color: #138496;
+}
+
+/* Стили для блока удаления */
+.delete-container {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.delete-container h3 {
+    margin-top: 0;
+    color: #dc3545;
+}
+
+#delete-button {
+    background-color: #dc3545;
+    margin-top: 10px;
+}
+
+#delete-button:hover {
+    background-color: #c82333;
+}
+/* Дополнительные стили для результатов поиска */
+#search-results div {
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    margin-top: 10px;
+}
+
+#search-results a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+#search-results a:hover {
+    text-decoration: underline;
+}
