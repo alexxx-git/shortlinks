@@ -1,25 +1,23 @@
 from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-#
-fake_users_db = {
-    "alice": {
-        "username": "alice",
-        "full_name": "Alice Wonderland",
-        "email": "alice@example.com",
-        "hashed_password": pwd_context.hash("mypassword"),
-    }
-}
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-def get_user(db, username: str):
-    return db.get(username)
-
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def authenticate_user(db, username: str, password: str):
-    user = get_user(db, username)
-    if not user or not verify_password(password, user["hashed_password"]):
+async def get_user(db: AsyncSession, username: str):
+    stmt = select(User).where(User.username == username)
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+async def authenticate_user(db: AsyncSession, username: str, password: str):
+    user = await get_user(db, username)
+    if not user or not verify_password(password, user.password):
         return None
     return user

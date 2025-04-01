@@ -1,5 +1,3 @@
-import bcrypt
-print(bcrypt.__version__)  # Должно быть 4.0.1
-import passlib.hash
-print(passlib.hash.bcrypt.hash("test"))
-
+import redis.asyncio as redis
+r = redis.Redis()
+await r.ping()
