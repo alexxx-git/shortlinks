@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUS:ShortURL Service</title>
+    <link rel="stylesheet" href="/static/styles.css?v=1.1">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div id="main-content">
+        <div class="button-container">
+            <button id="login-button">Войти</button>
+            <button id="register-button">Зарегистрироваться</button>
+            <button id="logout-button" style="display: none;">Выйти</button>
+        </div>
+
+        <div id="user-greeting"></div>
+
+
+        <!-- Для гостей -->
+        <div id="guest-container" class="short-link-container">
+            <label for="guest-original-link">Введите длинную ссылку</label>
+            <input type="url" id="guest-original-link" placeholder="Введите URL" />
+            <input type="text" id="guest-short-link" class="short-link-display" readonly style="display: none;" />
+            <button id="guest-get-short-link">Создать короткую ссылку</button>
+                    <!-- Вывод ошибки -->
+            <div id="guest-error-message" style="color: red; font-weight: bold; display: none;"></div>
+        </div>
+
+        <!-- Для зарегистрированных пользователей -->
+        <div id="user-container" class="short-link-container" style="display: none;">
+            <label for="user-original-link">Введите длинную ссылку</label>
+            <input type="url" id="user-original-link" placeholder="Введите URL" />
+            <label for="user-custom-alias">Введите алиас (необязательно)</label>
+            <input type="text" id="user-custom-alias" placeholder="Кастомный алиас" />
+            <input type="text" id="user-short-link" class="short-link-display" readonly style="display: none;" />
+            <button id="user-get-short-link">Создать короткую ссылку</button>
+            <!-- Вывод ошибки -->
+            <div id="user-error-message" style="color: red; font-weight: bold; display: none;"></div>
+            <!-- Новый блок для изменения URL -->
+            <div class="update-container">
+                <h3>Изменить URL короткой ссылки</h3>
+                <input type="text" id="update-short-code" placeholder="Короткий код" />
+                <input type="url" id="new-url" placeholder="Новый URL" />
+                <button id="update-button">Заменить URL</button>
+                <div id="update-error" style="color: red; font-weight: bold; display: none;"></div>
+                <div id="update-success" style="color: green; font-weight: bold; display: none;"></div>
+            </div>
+            <!-- Новый блок для удаления ссылок -->
+            <div class="delete-container">
+                <h3>Удалить короткую ссылку</h3>
+                <input type="text" id="delete-short-code" placeholder="Введите короткий код" />
+                <button id="delete-button">Удалить</button>
+                <div id="delete-error" style="color: red; font-weight: bold; display: none;"></div>
+                <div id="delete-success" style="color: green; font-weight: bold; display: none;"></div>
+            </div>
+
+            
+
+        </div>
+
+        <!-- Отображение результата -->
+        <div id="short-link-result" style="display: none;">
+            <h3>Ваша короткая ссылка:</h3>
+            <input type="text" id="short-link" readonly />
+        </div>
+    </div>
+
+    <!-- Модальное окно для логина -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Вход</h2>
+            <form id="login-form">
+                <input type="text" name="username" placeholder="Логин" required>
+                <input type="password" name="password" placeholder="Пароль" required>
+                <button type="submit">Войти</button>
+            </form>
+            <div id="login-error"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для регистрации -->
+    <div id="register-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Регистрация</h2>
+            <form id="register-form">
+                <input type="text" name="username" placeholder="Логин" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Пароль" required>
+                <button type="submit">Зарегистрироваться</button>
+            </form>
+            <div id="register-error"></div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=1.1"></script>
+</body>
+</html>

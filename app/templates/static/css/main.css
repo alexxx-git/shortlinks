@@ -1,0 +1,41 @@
+/* main.css */
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    transition: opacity 0.3s ease;
+}
+
+.auth-nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.shortener-form, 
+.search-form, 
+.management-form, 
+.stats-form {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.error {
+    color: #d32f2f;
+    margin-top: 10px;
+}
