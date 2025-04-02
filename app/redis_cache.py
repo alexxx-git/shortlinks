@@ -1,12 +1,8 @@
 from redis.asyncio import Redis
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
 
-# Загружаем переменные окружения
-load_dotenv()
-from config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
-
+from app.config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
 
 async def init_redis() -> Redis:
     redis_client=Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD, decode_responses=True)
@@ -32,4 +28,4 @@ async def get_redis() -> AsyncGenerator[Redis, None]:
 
 async def redis_dependency() -> Redis:
     async with get_redis() as redis:
-        return redis  # Здесь можно использовать await
+        return redis  

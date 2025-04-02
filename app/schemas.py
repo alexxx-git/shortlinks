@@ -1,7 +1,5 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, field_validator,Field
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, field_validator,Field
 from typing import Optional
-from fastapi import HTTPException, Depends
 import re
 class Config:
     orm_mode = True  # Это позволяет Pydantic работать с SQLAlchemy моделями

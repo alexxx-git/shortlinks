@@ -1,4 +1,5 @@
 # Стандартная библиотека и встроенные модули
+
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -26,13 +27,13 @@ from sqlalchemy import func, delete
 from sqlalchemy.orm import joinedload
 
 # Модели и схемы
-from models import User, ShortLink, ShortLinkArchive, Visit, VisitArchive
-from schemas import LinkRequest, ShortLinkUpdateModel
+from app.models import User, ShortLink, ShortLinkArchive, Visit, VisitArchive
+from app.schemas import LinkRequest, ShortLinkUpdateModel
 
 # Аутентификация и безопасность
-from auth import authenticate_user, hash_password, verify_password
+from app.auth import authenticate_user, hash_password, verify_password
 from jose import jwt, JWTError
-from config import (
+from app.config import (
     SECRET_KEY, 
     ALGORITHM, 
     ACCESS_TOKEN_EXPIRE_MINUTES, 
@@ -41,8 +42,8 @@ from config import (
 )
 
 # Внешние сервисы и утилиты
-from database import get_db, engine
-from redis_cache import get_redis, redis_dependency
+from app.database import get_db, engine
+from app.redis_cache import get_redis, redis_dependency
 from redis.asyncio import Redis
 import geoip2.database
 
@@ -50,6 +51,26 @@ import geoip2.database
 from pydantic import HttpUrl
 
 
+
+
+app = FastAPI()
+templates = Jinja2Templates(directory="app/templates")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="app/token")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+      # Подключение к Redis (с await!)
+    get_redis()
+      # Инициализация БД
+    async with engine.begin() as conn:
+        await conn.run_sync(User.metadata.create_all)
+    
+    yield  # Здесь приложение работает
+
+
+app = FastAPI(lifespan=lifespan)
+
+app.mount("/static", StaticFiles(directory="app/templates/static"), name="static")
 
 def random_salt():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=8))
@@ -59,48 +80,6 @@ def generate_short_code(original_url: HttpUrl) -> str:
     original_url_str = str(original_url)  # Преобразуем HttpUrl в строку
     hash_value = hashlib.sha256((original_url_str + random_salt()).encode()).hexdigest()
     return hash_value[:8]  # Обрезаем до 8 символов
-
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-  
-    # Подключение к Redis (с await!)
-    get_redis()
-  
-    # Инициализация БД
-    async with engine.begin() as conn:
-        await conn.run_sync(User.metadata.create_all)
-    
-    yield  # Здесь приложение работает
-    # await close_redis()
-    # # Закрытие соединения с Redis
-    # if redis:
-    #     await close_redis(redis)
-
-app = FastAPI(lifespan=lifespan)
-
-app.mount("/static", StaticFiles(directory="templates/static"), name="static")
-
-
-# links_router = APIRouter(prefix="/links", tags=["Links"])
-
-# @links_router.get("/{short_code}/stats")
-# async def get_link_stats(short_code: str):
-#     return {"message": f"Статистика для {short_code}"}
-
-# @links_router.get("/search")
-# async def search_short_link(original_url: str):
-#     return {"message": f"Поиск короткой ссылки для {original_url}"}
-
-# @links_router.get("/{short_code}")
-# async def redirect_short_link(short_code: str):
-#     return {"message": f"Перенаправление для {short_code}"}
-
-# app.include_router(links_router)
-
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, token: str = Cookie(None)):
@@ -378,7 +357,7 @@ async def logout():
 
 
 # Инициализация GeoIP2
-reader = geoip2.database.Reader('GeoLite2-Country.mmdb')
+reader = geoip2.database.Reader('app/GeoLite2-Country.mmdb')
 
 def get_country_by_ip(ip: str) -> str:
     try:
