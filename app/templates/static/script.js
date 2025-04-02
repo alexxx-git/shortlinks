@@ -33,14 +33,6 @@ document.addEventListener("DOMContentLoaded", function () {
             const button = document.getElementById("user-get-short-link");
             if (button) {
                 button.textContent = "Создать короткую ссылку";
-            // Для авторизованных пользователей
-            document.getElementById("guest-container").style.display = "none";
-            document.getElementById("user-container").style.display = "block";
-            
-            // Очищаем поля поиска при переключении
-            document.getElementById("guest-search-original-url").value = "";
-            document.getElementById("guest-search-results").innerHTML = "";
-            document.getElementById("guest-search-error").style.display = "none";
             }
         } else {
             loginButton.style.display = "inline-block";
@@ -55,15 +47,6 @@ document.addEventListener("DOMContentLoaded", function () {
             if (button) {
                 button.textContent = "Создать короткую ссылку";
             }
-            // Для гостей
-            document.getElementById("guest-container").style.display = "block";
-            document.getElementById("user-container").style.display = "none";
-            
-            // Очищаем поля поиска при переключении
-            document.getElementById("user-search-original-url").value = "";
-            document.getElementById("user-search-results").innerHTML = "";
-            document.getElementById("user-search-error").style.display = "none";
-            
         }
     }
 
@@ -285,67 +268,7 @@ document.addEventListener("DOMContentLoaded", function () {
             errorElement.style.display = "block";
         }
     });
-   // Обработчик поиска для гостей
-document.getElementById("guest-search-button")?.addEventListener("click", async function() {
-    await handleSearch(
-        "guest-search-original-url",
-        "guest-search-results",
-        "guest-search-error"
-    );
-});
 
-// Обработчик поиска для авторизованных пользователей
-document.getElementById("user-search-button")?.addEventListener("click", async function() {
-    await handleSearch(
-        "user-search-original-url",
-        "user-search-results",
-        "user-search-error"
-    );
-});
-
-// Общая функция обработки поиска
-async function handleSearch(inputId, resultsId, errorId) {
-    const originalUrl = document.getElementById(inputId).value.trim();
-    const errorElement = document.getElementById(errorId);
-    const resultsElement = document.getElementById(resultsId);
-    
-    errorElement.style.display = "none";
-    resultsElement.innerHTML = "";
-    
-    if (!originalUrl) {
-        errorElement.textContent = "Введите URL для поиска";
-        errorElement.style.display = "block";
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/links/search?original_url=${encodeURIComponent(originalUrl)}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            if (data.short_code) {
-                const fullShortUrl = `${window.location.origin}/${data.short_code}`;
-                resultsElement.innerHTML = `
-                    <p>Найдена короткая ссылка:</p>
-                    <div style="margin-top: 10px;">
-                        <strong>Оригинальный URL:</strong> ${data.original_url}<br>
-                        <strong>Короткая ссылка:</strong> <a href="${fullShortUrl}" target="_blank">${fullShortUrl}</a><br>
-                        <strong>Код:</strong> ${data.short_code}
-                    </div>
-                `;
-            } else {
-                resultsElement.innerHTML = "<p>По вашему запросу ничего не найдено</p>";
-            }
-        } else {
-            errorElement.textContent = data.detail || "Ошибка при поиске";
-            errorElement.style.display = "block";
-        }
-    } catch (error) {
-        console.error("Ошибка поиска:", error);
-        errorElement.textContent = "Ошибка сети при поиске";
-        errorElement.style.display = "block";
-    }
-}
     }
     
     shortenLink("guest-original-link", null, "guest-short-link", "guest-get-short-link", "guest-error-message");

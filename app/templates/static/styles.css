@@ -1,3 +1,4 @@
+
 /* Основные стили */
 body {
     font-family: Arial, sans-serif;
@@ -163,20 +164,4 @@ input[type="email"] {
 #delete-button:hover {
     background-color: #c82333;
 }
-/* Дополнительные стили для результатов поиска */
-#search-results div {
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 5px;
-    border: 1px solid #dee2e6;
-    margin-top: 10px;
-}
 
-#search-results a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-#search-results a:hover {
-    text-decoration: underline;
-}

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сервис сокращения ссылок</title>
+    <title>SUS:ShortURL Service</title>
     <link rel="stylesheet" href="/static/styles.css?v=1.1">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
 </head>
 <body>
     <div id="main-content">
@@ -16,23 +17,15 @@
 
         <div id="user-greeting"></div>
 
+
         <!-- Для гостей -->
         <div id="guest-container" class="short-link-container">
             <label for="guest-original-link">Введите длинную ссылку</label>
             <input type="url" id="guest-original-link" placeholder="Введите URL" />
             <input type="text" id="guest-short-link" class="short-link-display" readonly style="display: none;" />
             <button id="guest-get-short-link">Создать короткую ссылку</button>
-            <!-- Вывод ошибки -->
+                    <!-- Вывод ошибки -->
             <div id="guest-error-message" style="color: red; font-weight: bold; display: none;"></div>
-            
-            <!-- Блок поиска для гостей -->
-            <div id="guest-search-container" class="search-container">
-                <h3>Поиск короткой ссылки</h3>
-                <input type="text" id="guest-search-original-url" placeholder="Введите оригинальный URL для поиска" />
-                <button id="guest-search-button">Найти короткую ссылку</button>
-                <div id="guest-search-results" style="margin-top: 10px;"></div>
-                <div id="guest-search-error" style="color: red; font-weight: bold; display: none;"></div>
-            </div>
         </div>
 
         <!-- Для зарегистрированных пользователей -->
@@ -45,17 +38,7 @@
             <button id="user-get-short-link">Создать короткую ссылку</button>
             <!-- Вывод ошибки -->
             <div id="user-error-message" style="color: red; font-weight: bold; display: none;"></div>
-            
-            <!-- Блок поиска для пользователей -->
-            <div id="user-search-container" class="search-container">
-                <h3>Поиск короткой ссылки</h3>
-                <input type="text" id="user-search-original-url" placeholder="Введите оригинальный URL для поиска" />
-                <button id="user-search-button">Найти короткую ссылку</button>
-                <div id="user-search-results" style="margin-top: 10px;"></div>
-                <div id="user-search-error" style="color: red; font-weight: bold; display: none;"></div>
-            </div>
-
-            <!-- Блок для изменения URL -->
+            <!-- Новый блок для изменения URL -->
             <div class="update-container">
                 <h3>Изменить URL короткой ссылки</h3>
                 <input type="text" id="update-short-code" placeholder="Короткий код" />
@@ -64,8 +47,7 @@
                 <div id="update-error" style="color: red; font-weight: bold; display: none;"></div>
                 <div id="update-success" style="color: green; font-weight: bold; display: none;"></div>
             </div>
-
-            <!-- Блок для удаления ссылок -->
+            <!-- Новый блок для удаления ссылок -->
             <div class="delete-container">
                 <h3>Удалить короткую ссылку</h3>
                 <input type="text" id="delete-short-code" placeholder="Введите короткий код" />
@@ -73,6 +55,9 @@
                 <div id="delete-error" style="color: red; font-weight: bold; display: none;"></div>
                 <div id="delete-success" style="color: green; font-weight: bold; display: none;"></div>
             </div>
+
+            
+
         </div>
 
         <!-- Отображение результата -->
