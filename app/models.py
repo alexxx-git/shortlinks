@@ -97,5 +97,4 @@ class VisitArchive(Base):
     archived_link = relationship("ShortLinkArchive", back_populates="visits_archive",
                                 foreign_keys=[short_code],
                                 primaryjoin="ShortLinkArchive.short_code == VisitArchive.short_code")
-        
-        # Добавьте эти строки в вашу модель, чтобы связать архивные ссылки с пользователями
+

@@ -51,3 +51,6 @@ class ShortLinkUpdateModel(BaseModel):
         if not re.match(r"^https?://", v):  # Проверяем, что URL начинается с http:// или https://
             raise ValueError('Некорректный URL')
         return v.strip()
+    
+class ArchiveFilter(BaseModel):
+    short_code: Optional[str] = None  # Фильтр по короткой ссылке (необязательный)
