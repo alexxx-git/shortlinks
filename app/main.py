@@ -17,27 +17,28 @@ from fastapi import (
 )
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # Базы данных и ORM
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, delete
+from sqlalchemy import func, delete, update
 from sqlalchemy.orm import joinedload
 
 # Модели и схемы
 from app.models import User, ShortLink, ShortLinkArchive, Visit, VisitArchive
-from app.schemas import LinkRequest, ShortLinkUpdateModel
+from app.schemas import LinkRequest, ShortLinkUpdateModel, ArchiveFilter
 
 # Аутентификация и безопасность
-from app.auth import authenticate_user, hash_password, verify_password
+from app.auth import hash_password, verify_password
 from jose import jwt, JWTError
 from app.config import (
     SECRET_KEY, 
     ALGORITHM, 
     ACCESS_TOKEN_EXPIRE_MINUTES, 
-    LINK_EXPIRE_TIME_IN_MINUTES, 
+    LINK_EXPIRE_TIME_IN_DAYS_4UNREG, 
+    LINK_EXPIRE_TIME_IN_DAYS_REG,
     REDIS_TTL
 )
 
@@ -104,7 +105,7 @@ async def read_users_me(token: str = Depends(oauth2_scheme)):
 
     return {"username": username}
 
-from fastapi.responses import JSONResponse
+
 
 
 # Функция для получения user_id из токена
@@ -183,33 +184,36 @@ async def shorten_link(
     redis: Redis = Depends(redis_dependency),
     user_id: Optional[int] = Depends(get_user_from_token),
 ):
-    # 🛠️ Извлекаем expires_at и очищенный URL
     cleaned_url, expires_at_query = extract_expires_at(link_request.original_url)
 
     short_code = link_request.customAlias
 
-    # 🔍 Если пользователь не авторизован и не указан параметр expire, проверяем наличие ссылки в Redis
     if not user_id and not expires_at_query:
-        # Проверяем наличие короткого кода для данного длинного URL
-        redis_key = f"longlink:{quote(cleaned_url)}"  # Кодируем длинный URL
+        redis_key = f"longlink:{quote(cleaned_url)}"  
         existing_short_code = await redis.get(redis_key)
 
         if existing_short_code:
-            short_code = existing_short_code  # Уже строка, decode() не нужен!
-            await redis.expire(redis_key, REDIS_TTL)
-            await redis.expire(f"shortlink:{short_code}", REDIS_TTL)
-            
-            host = str(request.base_url).rstrip("/")
-            return {
-                "short_url": f"{host}/links/{short_code}",
-                "original_url": cleaned_url,
-                "custom_alias": short_code,
-                "from_cache": True
-            }
+            # Добавлена проверка в базу данных для незарегистрированных пользователей
+            db_query = select(ShortLink).where(
+                ShortLink.short_code == existing_short_code,
+                ShortLink.user_id.is_(None)  # Проверяем только у незарегистрированных
+            )
+            db_result = await db.execute(db_query)
+            if db_result.scalars().first():
+                short_code = existing_short_code
+                await redis.expire(redis_key, REDIS_TTL)
+                await redis.expire(f"shortlink:{short_code}", REDIS_TTL)
+                
+                host = str(request.base_url).rstrip("/")
+                return {
+                    "short_url": f"{host}/links/{short_code}",
+                    "original_url": cleaned_url,
+                    "custom_alias": short_code,
+                    "from_cache": True
+                }
 
-    # 🔍 Проверяем уникальность alias, если он задан
     if short_code:
-        redis_key = f"shortlink:{quote(short_code)}"  # Кодируем короткий код
+        redis_key = f"shortlink:{quote(short_code)}" 
 
         if await redis.exists(redis_key):
             raise HTTPException(status_code=400, detail="This alias is already taken. Please choose another.")
@@ -220,10 +224,9 @@ async def shorten_link(
             raise HTTPException(status_code=400, detail="This alias is already taken. Please choose another.")
 
     else:
-        # 🆕 Генерируем короткий код
         while True:
             short_code = generate_short_code(cleaned_url)
-            redis_key = f"shortlink:{quote(short_code)}"  # Кодируем короткий код
+            redis_key = f"shortlink:{quote(short_code)}"  
 
             if await redis.exists(redis_key):
                 continue
@@ -233,33 +236,28 @@ async def shorten_link(
             if result.scalars().first():
                 continue
 
-            break  # Нашли уникальный short_code
+            break 
 
-    # Кодируем URL перед сохранением в Redis
-    encoded_url = quote(cleaned_url)  # Кодируем оригинальный URL
+    encoded_url = quote(cleaned_url)  
 
-    # 🕒 Вычисляем TTL для Redis
     if expires_at_query:
         ttl = min((expires_at_query - datetime.now()).total_seconds(), REDIS_TTL)
     else:
         ttl = REDIS_TTL
 
-    # Сохраняем в Redis обе пары (короткий → длинный и длинный → короткий)
-    await redis.set(f"shortlink:{quote(short_code)}", encoded_url, ex=int(ttl))  # Кодируем и короткий, и длинный URL
-    await redis.set(f"longlink:{encoded_url}", quote(short_code), ex=int(ttl))  # Кодируем длинный URL и короткий код
+    await redis.set(f"shortlink:{quote(short_code)}", encoded_url, ex=int(ttl)) 
+    await redis.set(f"longlink:{encoded_url}", quote(short_code), ex=int(ttl)) 
 
-    # Вычисляем время истечения ссылки для базы данных
     if expires_at_query:
-        auto_expires = None  # Если задан `expires_at`, авто-удаление не нужно
+        auto_expires = None  
         expires_at = expires_at_query
     else:
-        auto_expires = datetime.now() + timedelta(days=30) if user_id else datetime.now() + timedelta(days=10)
+        auto_expires = datetime.now() + timedelta(days=LINK_EXPIRE_TIME_IN_DAYS_REG) if user_id else datetime.now() + timedelta(days=LINK_EXPIRE_TIME_IN_DAYS_4UNREG)
         expires_at = None
 
-    # Сохраняем в базе данных
     new_link = ShortLink(
         short_code=short_code,
-        original_url=cleaned_url,  # Очищенный URL без `expires_at`
+        original_url=cleaned_url,  
         created_at=datetime.now(),
         expires_at=expires_at,
         user_id=user_id,
@@ -268,7 +266,6 @@ async def shorten_link(
     db.add(new_link)
     await db.commit()
 
-    # 📎 Генерируем короткий URL
     host = str(request.base_url).rstrip("/")
     short_url = f"{host}/links/{short_code}"
 
@@ -398,22 +395,16 @@ async def delete_short_link(
     print(f"Получен запрос на удаление ссылки с кодом: {short_code} от пользователя с ID: {user_id}")
     
     if user_id is None:
-        print("Ошибка: Попытка удалить ссылку неавторизованным пользователем.")
-        return {"error": "Unauthorized: Guest users cannot delete links."}
+        return {"Ошибка": "Попытка удалить ссылку неавторизованным пользователем."}
 
     try:
-        # Проверяем, существует ли короткая ссылка в БД и принадлежит ли она пользователю
         query = select(ShortLink).where(ShortLink.short_code == short_code, ShortLink.user_id == user_id)
         result = await db.execute(query)
         short_link = result.scalars().first()
 
         if not short_link:
-            print(f"Ошибка: Ссылка с кодом {short_code} не найдена или не принадлежит пользователю {user_id}.")
-            return {"error": "Link not found or you do not have permission to delete it."}
+            return {"Ошибка": "Ссылка не найдена или у вас нет прав на ее удаление."}
 
-        print(f"Ссылка с кодом {short_code} найдена и принадлежит пользователю {user_id}.")
-
-        # Переносим ссылку в архив
         archived_link = ShortLinkArchive(
             user_id=short_link.user_id,
             short_code=short_link.short_code,
@@ -426,17 +417,13 @@ async def delete_short_link(
             archival_reason="deleted"
         )
         db.add(archived_link)
-        print(f"Ссылка с кодом {short_code} перенесена в архив.")
 
-        # Переносим все визиты в архив
         query_visits = select(Visit).where(Visit.short_code == short_code)
         result_visits = await db.execute(query_visits)
         visits = result_visits.scalars().all()
 
         if visits:
-            print(f"Найдено {len(visits)} визитов для ссылки {short_code}. Переносим их в архив.")
             
-            # Удаляем визиты после архивации
             for visit in visits:
                 visit_archive = VisitArchive(
                     owner=visit.owner,
@@ -453,71 +440,96 @@ async def delete_short_link(
                     archival_reason="deleted"
                 )
                 db.add(visit_archive)
-                await db.delete(visit)  # Удаляем оригинальный визит
+                await db.delete(visit) 
 
         else:
             print(f"Визитов для ссылки {short_code} не найдено.")
 
-        # Удаляем оригинальную запись из таблицы ShortLink
         await db.delete(short_link)
-        print(f"Оригинальная запись ссылки с кодом {short_code} удалена из таблицы ShortLink.")
 
-        # Обновляем кэш в Redis
         await redis.delete(f"shortlink:{short_code}")
         await redis.delete(f"short_ui:{short_code}")
-        print(f"Кэш для ссылки с кодом {short_code} удален из Redis.")
 
-        # Сохраняем изменения в базе данных
         await db.commit()
-        print(f"Изменения сохранены в базе данных. Ссылка с кодом {short_code} успешно удалена.")
         
     except Exception as e:
-        # В случае ошибки откатываем изменения
-        print(f"Произошла ошибка: {e}")
         await db.rollback()
-        return {"error": f"An error occurred while deleting the link: {str(e)}"}
+        return {"error": f"Произошла ошибка при удалении ссылки: {str(e)}"}
 
-    return {"message": "Link and visits successfully archived and deleted."}
+    return {"Сообщение": "Данные ссылки и посещений заархивированы и стёрты."}
 
 
+
+
+from pydantic import BaseModel, Field, field_validator
+from datetime import datetime, timedelta
+from fastapi import HTTPException, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
+import re
+
+class ShortLinkUpdateModel(BaseModel):
+    new_url: str = Field(..., max_length=2000)
+
+    @field_validator('new_url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        if not re.match(r"^https?://", v):
+            raise ValueError('Некорректный URL')
+        return v.strip()
 
 @app.put("/links/{short_code}")
 async def update_short_link(
     short_code: str,
-    new_url: str,  
+    link_update: ShortLinkUpdateModel,  
+    user_id: int = Depends(get_user_from_token),
     redis: Redis = Depends(redis_dependency),
     db: AsyncSession = Depends(get_db),
 ):
-    if not re.match(r"^https?://", new_url):
-        raise HTTPException(status_code=400, detail="Некорректный URL")
 
-    encoded_url = encode_url(new_url)
+    new_url = link_update.new_url
 
-    # Ищем ссылку в БД
-    query = select(ShortLink).where(ShortLink.short_code == short_code)
+
+    query = select(ShortLink).where(
+        ShortLink.short_code == short_code,
+        ShortLink.user_id == user_id
+    )
     result = await db.execute(query)
     short_link = result.scalars().first()
 
     if not short_link:
-        raise HTTPException(status_code=404, detail="Short link not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Ссылка не найдена или у вас нет прав на её изменение"
+        )
 
-    # Обновляем created_at
+    old_encoded_url = encode_url(short_link.original_url)
     short_link.original_url = new_url
-    short_link.created_at = datetime.utcnow()  # Перезаписываем время создания
+    short_link.created_at = datetime.utcnow()
+    short_link.auto_expires_at = datetime.utcnow() + timedelta(days=LINK_EXPIRE_TIME_IN_DAYS_REG)
+
+
+    if hasattr(short_link, 'last_access_at'):
+        short_link.last_access_at = None
+    if hasattr(short_link, 'expires_at'):
+        short_link.expires_at = None
+
+
+    new_encoded_url = encode_url(new_url)
+    await redis.delete(f"longlink:{old_encoded_url}")
+    await redis.delete(f"shortlink:{short_code}")
+    await redis.set(f"shortlink:{short_code}", new_encoded_url, ex=int(REDIS_TTL))
+    await redis.set(f"longlink:{new_encoded_url}", short_code, ex=int(REDIS_TTL))
 
     await db.commit()
 
-    # Удаляем старый кэш
-    old_encoded_url = encode_url(short_link.original_url)
-    await redis.delete(f"longlink:{old_encoded_url}")
-    await redis.delete(f"shortlink:{short_code}")
-
-    # Кешируем новый URL
-    await redis.set(f"shortlink:{short_code}", new_url)
-    await redis.set(f"longlink:{encoded_url}", short_code)
-
-    return {"short_code": short_code, "new_url": new_url, "created_at": short_link.created_at}
-
+    return {
+        "short_code": short_code,
+        "new_url": new_url,
+        "message": "Ссылка успешно обновлена",
+        "auto_expires_at": short_link.auto_expires_at.isoformat() if short_link.auto_expires_at else None
+    }
 
 # ***************************************************************************************************************
 
@@ -529,7 +541,7 @@ async def get_link_stats(
 ):
     print(f"[DEBUG] Запрос статистики для короткой ссылки: {short_code}")
 
-    # Ищем ссылку в базе данных по short_code
+
     query = select(ShortLink).where(ShortLink.short_code == short_code)
     result = await db.execute(query)
     short_link = result.scalars().first()
@@ -540,17 +552,16 @@ async def get_link_stats(
 
     print(f"[INFO] Найдена ссылка в БД: {short_link.short_code}")
 
-    # Подсчитываем количество визитов (оптимально через COUNT)
+  
     visit_query = select(func.count()).where(Visit.short_code == short_code)
     visit_result = await db.execute(visit_query)
-    visit_count = visit_result.scalar()  # Получаем количество строк
+    visit_count = visit_result.scalar()  
 
-    # Формируем статистику
     stats = {
         "original_url": short_link.original_url,
         "created_at": short_link.created_at,
-        "visit_count": visit_count,  # Количество визитов
-        "last_access_at": short_link.last_access_at,  # Дата последнего доступа
+        "visit_count": visit_count,  
+        "last_access_at": short_link.last_access_at,  
     }
 
     print(f"[INFO] Статистика для короткой ссылки {short_code}: {stats}")
@@ -579,22 +590,14 @@ async def search_short_link(
         print(f"[ERROR] Некорректный URL: {original_url}")
         raise HTTPException(status_code=400, detail="Некорректный URL")
 
-    # Кодируем URL для Redis
-    encoded_url = encode_url(original_url)
-    print(f"[DEBUG] Закодированный URL для Redis: {encoded_url}")
 
-    # 1. Ищем в Redis
+    encoded_url = encode_url(original_url)
     cached_short_code = await redis.get(f"longlink:{encoded_url}")
-    print(f"[DEBUG] Данные из Redis: {cached_short_code}")
 
     if cached_short_code:
         short_code = decode_url(cached_short_code)  # Декодируем из Redis
-        print(f"[INFO] Найдена короткая ссылка в Redis: {short_code}")
         return {"short_code": short_code, "original_url": original_url}
 
-    print("[DEBUG] В Redis нет данных, ищем в БД...")
-
-    # 2. Если в Redis нет, ищем в БД (берем самую свежую)
     query = (
         select(ShortLink)
         .where(ShortLink.original_url == original_url)
@@ -604,15 +607,10 @@ async def search_short_link(
     short_link = result.scalars().first()
 
     if not short_link:
-        print(f"[WARNING] В БД не найдена короткая ссылка для {original_url}")
         raise HTTPException(status_code=404, detail="Short link not found for the provided URL")
 
-    print(f"[INFO] Найдена короткая ссылка в БД: {short_link.short_code}, сохраняем в Redis...")
-
-    # 3. Кешируем в Redis (кодируем short_code!)
     await redis.set(f"longlink:{encoded_url}", encode_url(short_link.short_code))
 
-    print("[DEBUG] Данные успешно закешированы в Redis")
 
     return {"short_code": short_link.short_code, "original_url": short_link.original_url}
 
@@ -627,40 +625,34 @@ async def redirect_to_original_link(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(redis_dependency),
 ):
-
     redis_key = f"shortlink:{short_code}"
-    user_cache_key = f"short_ui:{short_code}"  # Кэш user_id
+    user_cache_key = f"short_ui:{short_code}"  
 
 
-    # Проверяем кэш user_id
     user_id = await redis.get(user_cache_key)
     if user_id is None:
-        # Если user_id нет в кэше, ищем в БД
+
         query = select(ShortLink.user_id).where(ShortLink.short_code == short_code)
         result = await db.execute(query)
         user_id = result.scalar()
 
-        # Если user_id не найден, считаем, что это гость (None)
-        if user_id is None:
-            user_id = None  # Гость
 
-        # Сохраняем user_id в кэш
+        if user_id is None:
+            user_id = None  
+
+
         await redis.set(user_cache_key, str(user_id) if user_id is not None else "guest", ex=REDIS_TTL)
     else:
         user_id = None if user_id == "guest" else int(user_id)
 
 
-
-    # Проверяем кэш ссылки
     encoded_url = await redis.get(redis_key)
-
 
     if encoded_url:
         original_url = decode_url(encoded_url)
         await redis.expire(redis_key, REDIS_TTL)
         await redis.expire(f"longlink:{encoded_url}", REDIS_TTL)
     else:
-        # Если в Redis нет, ищем в БД
 
         query = select(ShortLink).where(ShortLink.short_code == short_code)
         result = await db.execute(query)
@@ -672,21 +664,19 @@ async def redirect_to_original_link(
         original_url = short_link.original_url
         await redis.set(redis_key, encode_url(original_url), ex=REDIS_TTL)
 
-    # Извлекаем IP-адрес пользователя
+
     ip_address = request.client.host if request.client else "unknown"
 
-    # Определяем страну по IP
+
     country = get_country_by_ip(ip_address)
 
-    # Определяем тип устройства
+
     user_agent = request.headers.get("User-Agent", "").lower()
     device_type = "mobile" if "mobile" in user_agent else "desktop"
 
-    # Парсим домены через urlparse
     domain_1st, domain_2nd = parse_domains(original_url)
 
-    # Сохраняем посещение в БД
-    print('Запись в БД')
+
     visit = Visit(
         owner=user_id,
         timestamp=datetime.now(),
@@ -699,15 +689,104 @@ async def redirect_to_original_link(
         country=country,
         referer=request.headers.get("Referer"),
     )
-
     db.add(visit)
-    await db.commit()
+
+    # ОБНОВЛЯЕМ last_access_at ДЛЯ ВСЕХ ССЫЛОК
+    await db.execute(
+        update(ShortLink)
+        .where(ShortLink.short_code == short_code)
+        .values(last_access_at=datetime.now())
+    )
+
+    await db.commit()  # Один коммит для всех изменений
 
     return RedirectResponse(original_url)
 
-# Фоновая задача для архивации устаревших ссылок и визитов
+
+
+@app.get("/archive/stats")
+async def get_archived_stats(
+    filter: ArchiveFilter,
+    user_id: int = Depends(get_user_from_token),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(VisitArchive).where(VisitArchive.owner == user_id)
+
+
+    if filter.short_code:
+        query = query.where(VisitArchive.short_code == filter.short_code)
+
+    result = await db.execute(query)
+    visits = result.scalars().all()
+
+
+    grouped_stats = {}
+    for visit in visits:
+        key = (visit.short_code, visit.original_url)
+        if key not in grouped_stats:
+            grouped_stats[key] = []
+        grouped_stats[key].append({
+            "timestamp": visit.timestamp,
+            "domain_1st": visit.domain_1st,
+            "domain_2nd": visit.domain_2nd,
+            "ip_address": visit.ip_address,
+            "device_type": visit.device_type,
+            "country": visit.country,
+            "referer": visit.referer,
+            "archived_at": visit.archived_at,
+            "archival_reason": visit.archival_reason
+        })
+
+    return grouped_stats
+
+
+
+@app.get("/active-links/stats")
+async def get_active_link_stats(
+    filter: ArchiveFilter,  
+    user_id: int = Depends(get_user_from_token),  
+    db: AsyncSession = Depends(get_db),
+):
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Неавторизованный доступ")
+
+
+    query = select(Visit).where(Visit.owner == user_id)
+
+
+    if filter.short_code:
+        query = query.where(Visit.short_code == filter.short_code)
+
+    result = await db.execute(query)
+    visits = result.scalars().all()
+
+    if not visits:
+        raise HTTPException(status_code=404, detail="Не найдено активных визитов для данного пользователя")
+
+
+    grouped_stats = {}
+    for visit in visits:
+        key = (visit.short_code, visit.original_url)
+        if key not in grouped_stats:
+            grouped_stats[key] = []
+        grouped_stats[key].append({
+            "timestamp": visit.timestamp.isoformat(),
+            "domain_1st": visit.domain_1st,
+            "domain_2nd": visit.domain_2nd,
+            "ip_address": visit.ip_address,
+            "device_type": visit.device_type,
+            "country": visit.country,
+            "referer": visit.referer
+        })
+
+    return grouped_stats
+
+
+
+
 async def archive_expired_links():
-    period=60 #время между проверками
+    period=60 #время между проверками удаляем каждую минуту т.к. есть задача  удаления ссылки с точностьбю до минуты
     """Фоновая задача для архивации устаревших ссылок и визитов и очистки Redis."""
     while True:
         async with get_db() as db, get_redis() as redis:
@@ -724,12 +803,9 @@ async def archive_expired_links():
                 expired_links = result.scalars().all()
 
                 if not expired_links:
-                    await asyncio.sleep(period)  # Если нет устаревших, ждем 1 час
+                    await asyncio.sleep(period)  # Если нет устаревших, ждем 
                     continue
 
-                print(f"[INFO] Найдено {len(expired_links)} устаревших ссылок")
-
-                # 2. Создаём архивные записи
                 archived_links = []
                 archived_visits = []
                 short_codes_to_delete = set()
@@ -737,7 +813,6 @@ async def archive_expired_links():
                 for link in expired_links:
                     reason = "auto exp" if link.auto_expires_at < now else "exp"
 
-                    # Переносим ссылку в архив
                     archived_links.append(
                         ShortLinkArchive(
                             user_id=link.user_id,
@@ -752,7 +827,6 @@ async def archive_expired_links():
                         )
                     )
 
-                    # Переносим связанные визиты в архив
                     for visit in link.visits:
                         archived_visits.append(
                             VisitArchive(
@@ -773,28 +847,22 @@ async def archive_expired_links():
 
                     short_codes_to_delete.add(link.short_code)
 
-                # 3. Вставляем в архивные таблицы (архивируем данные)
                 db.add_all(archived_links)
                 db.add_all(archived_visits)
 
-                # 4. Удаляем из основных таблиц (атомарно!)
                 await db.execute(delete(Visit).where(Visit.short_code.in_(short_codes_to_delete)))
                 await db.execute(delete(ShortLink).where(ShortLink.short_code.in_(short_codes_to_delete)))
 
-                # 5. Удаляем из Redis (если ссылки есть в кэше)
                 for short_code in short_codes_to_delete:
                     original_url = await redis.get(f"shortlink:{short_code}")
                     if original_url:
                         await redis.delete(f"shortlink:{short_code}")
                         await redis.delete(f"longlink:{original_url.decode()}")
 
-                # 6. Фиксируем изменения в БД
                 await db.commit()
-                print(f"[INFO] Перемещено {len(expired_links)} ссылок и {len(archived_visits)} визитов в архив")
 
             except Exception as e:
-                # В случае ошибки откатываем изменения
-                await db.rollback()  # ОТКАТ всех изменений в случае ошибки
-                print(f"[ERROR] Ошибка при переносе ссылок в архив: {e}")
 
-        await asyncio.sleep(period)  # Запускаем таск каждый час, а для теста каждую минуту
+                await db.rollback()  # ОТКАТ всех изменений в случае ошибки
+
+        await asyncio.sleep(period)  
